@@ -15,7 +15,11 @@ apt install -y isc-dhcp-server net-tools nfs-kernel-server screen syslinux-commo
 # Configure network interface
 mgmt_interface="$(ip a | egrep '^[0-9]:' | sed '2!d' | tr -s ' ' | sed 's/ /:/g' | cut -d ':' -f3)"
 dhcp_interface="$(ip a | egrep '^[0-9]:' | sed '3!d' | tr -s ' ' | sed 's/ /:/g' | cut -d ':' -f3)"
-mv $netplan_configuration_file ${netplan_configuration_file}.conf_original
+if [ -f $netplan_configuration_file ]; then
+  mv $netplan_configuration_file ${netplan_configuration_file}.backup
+fi
+
+rm -f /etc/netplan/*.conf
 cat >> $netplan_configuration_file << EOF
 # This is the network config written by "Kickstart project script"
 network:
