@@ -5,10 +5,16 @@ pxe_data_path='/var/lib/PXE'
 images_path="$pxe_data_path/images"
 livecd_extract_path="$pxe_data_path/extract-livecd"
 livecd_image_name='ubuntu-20.04-desktop-amd64.iso'
-livecd_dist_name="OB_modded"
-livecd_title_name="OB modded"
+livecd_dist_name="Devorkin_modded"
+livecd_title_name="Devorkin modded"
 tftp_path='/var/lib/tftpboot'
 working_dir="$pxe_data_path/working_dir"
+
+# Checking that thescript run as Root
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 
+   exit 1
+fi
 
 # Extract the LiveCD OS
 apt install -y genisoimage squashfs-tools xorriso
@@ -18,7 +24,7 @@ cd $working_dir
 
 if [ ! -f $images_path/$livecd_image_name ]; then
     echo -e "Error as occured -- $images_path/$livecd_image_name does not exists"
-    exit 1
+    exit 2
 fi
 
 mount $images_path/$livecd_image_name $pxe_data_path/tmp
@@ -26,10 +32,10 @@ rsync --exclude=/casper/filesystem.squashfs -a $pxe_data_path/tmp/ $livecd_extra
 
 # Prepare & Chroot
 unsquashfs $pxe_data_path/tmp/casper/filesystem.squashfs
-mv squashfs-root edit
-mount -o bind /run/ edit/run
-mount --bind /dev/ edit/dev
-chroot edit
+mv squashfs-root squashfs-root-edit
+mount -o bind /run/ squashfs-root-edit/run
+mount --bind /dev/ squashfs-root-edit/dev
+chroot squashfs-root-edit
 mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devpts none /dev/pts
@@ -37,11 +43,13 @@ export HOME=/root
 export LC_ALL=C
 
 #### Chroot env. variables
-virtual_machine='False'
+virtual_machine='True'
 ####
 
 # Packages management
 echo -e "\n\ndeb http://archive.ubuntu.com/ubuntu focal universe\ndeb http://archive.ubuntu.com/ubuntu focal-updates universe\ndeb http://archive.ubuntu.com/ubuntu focal-security universe" >> /etc/apt/sources.list
+echo "deb http://linux.dell.com/repo/community/openmanage/950/focal focal main" > /etc/apt/sources.list.d/linux.dell.com.sources.list
+apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 1285491434D8786F
 apt update
 dpkg-divert --local --rename --add /sbin/initctl
 ln -s /bin/true /sbin/initctl
@@ -50,7 +58,9 @@ apt purge -y apparmor apparmor-utils gnome-todo hyphen-ru libjuh-java libjurt-ja
 libreoffice-style-tango librhythmbox-core10 libridl-java libuno-cppu3 libuno-cppuhelpergcc3-3 libuno-purpenvhelpergcc3-3 libuno-sal3 libuno-salhelpergcc3-3 \
 libunoloader-java mythes-de mythes-de-ch mythes-en-us mythes-es mythes-fr mythes-it mythes-pt-pt mythes-ru rhythmbox rhythmbox-data thunderbird
 
-apt install -y alien conky curl exfat-fuse exfat-utils glances ipmitool libncurses5 lldpd mdadm net-tools nfs-common openssh-server screen smartmontools traceroute vim
+apt install -y alien bonnie++ conky curl exfat-fuse exfat-utils fio glances ipmitool libargtable2-0 libncurses5 lldpd mdadm net-tools nfs-common openssh-server screen smartmontools srvadmin-base srvadmin-idracadm7 srvadmin-idracadm8 traceroute vim
+
+
 if [[ $virtual_machine == 'True' ]]; then 
     apt install -y open-vm-tools
 fi
@@ -73,7 +83,7 @@ EOF
 
 # MegaCLI
 wget https://docs.broadcom.com/docs-and-downloads/raid-controllers/raid-controllers-common-files/8-07-14_MegaCLI.zip -P /tmp/
-unzip /tmp/8-07-14_MegaCLI.zip -d /tmp
+unzipz /tmp/8-07-14_MegaCLI.zip -d /tmp
 alien /tmp/Linux/MegaCli-8.07.14-1.noarch.rpm
 dpkg -i megacli_8.07.14-2_all.deb
 rm -f megacli_8.07.14-2_all.deb
@@ -88,6 +98,7 @@ mkdir /usr/local/lib/conky
 ###
 mv /tmp/AutomatiK /usr/local/lib/conky/
 chown -R 999:999 /usr/local/lib/conky/AutomatiK
+chmod -R rwx /usr/local/lib/conky/AutomatiK
 cat >> /etc/xdg/autostart/conky.desktop << EOF
 [Desktop Entry]
 Type=Application
@@ -115,14 +126,14 @@ exit
 
 # Producing the CD image
 chmod +w $livecd_extract_path/casper/filesystem.manifest
-chroot edit dpkg-query -W --showformat='${Package} ${Version}\n' > $livecd_extract_path/casper/filesystem.manifest
+chroot squashfs-root-edit dpkg-query -W --showformat='${Package} ${Version}\n' > $livecd_extract_path/casper/filesystem.manifest
 cp $livecd_extract_path/casper/filesystem.manifest $livecd_extract_path/casper/filesystem.manifest-desktop
 sed -i '/ubiquity/d' $livecd_extract_path/casper/filesystem.manifest-desktop
 sed -i '/casper/d' $livecd_extract_path/casper/filesystem.manifest-desktop
 
 if [ -f $livecd_extract_path/casper/filesystem.squashfs ]; then rm $livecd_extract_path/casper/filesystem.squashfs; fi
-mksquashfs edit $livecd_extract_path/casper/filesystem.squashfs -b 1048576
-printf $(du -sx --block-size=1 edit | cut -f1) > $livecd_extract_path/casper/filesystem.size
+mksquashfs squashfs-root-edit $livecd_extract_path/casper/filesystem.squashfs -b 1048576
+printf $(du -sx --block-size=1 squashfs-root-edit | cut -f1) > $livecd_extract_path/casper/filesystem.size
 original_disk_name=$(cat $livecd_extract_path/README.diskdefines | grep DISKNAME | sed -e 's/#define DISKNAME  //')
 sed -i "s|#define DISKNAME  $original_disk_name|#define DISKNAME  Ubuntu 20.04 -- ${livecd_title_name}|" $livecd_extract_path/README.diskdefines
 
@@ -132,8 +143,14 @@ find -type f -print0 | xargs -0 md5sum | grep -v isolinux/boot.cat | tee md5sum.
 
 mkisofs -D -r -V "Ubuntu_custom" -cache-inodes -J -l -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -o $images_path/ubuntu-${livecd_dist_name}.iso .
 
+# Clean up
+umount $working_dir/squashfs-root-edit/dev
+umount $working_dir/squashfs-root-edit/run
+rm -rf $livecd_extract_path/* rm -rf $livecd_extract_path/.*
 umount $pxe_data_path/tmp
-umount $working_dir/edit/run
+rm -rf $livecd_extract_path
+rm -rf $working_dir
+
 
 mkdir $pxe_data_path/data/ubuntu-${livecd_dist_name}
 mount $images_path/ubuntu-${livecd_dist_name}.iso $pxe_data_path/tmp
