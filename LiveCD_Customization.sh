@@ -1,14 +1,17 @@
 #! /bin/bash
 
 # Script declarations
+boot_suffix='lubuntu'
 pxe_data_path='/var/lib/PXE'
 images_path="$pxe_data_path/images"
 livecd_extract_path="$pxe_data_path/extract-livecd"
-livecd_image_name='ubuntu-20.04-desktop-amd64.iso'
-livecd_dist_name="Devorkin_modded"
-livecd_title_name="Devorkin modded"
+livecd_image_name='lubuntu-20.04.4-desktop-amd64.iso'
+# livecd_image_name='ubuntu-20.04-desktop-amd64.iso'
+livecd_dist_name="LXDE_Devorkin_Modded"
+livecd_title_name="LXDE Devorkin Modded"
 tftp_path='/var/lib/tftpboot'
 working_dir="$pxe_data_path/working_dir"
+
 
 # Checking that thescript run as Root
 if [[ $EUID -ne 0 ]]; then
@@ -43,7 +46,7 @@ export HOME=/root
 export LC_ALL=C
 
 #### Chroot env. variables
-virtual_machine='True'
+virtual_machine='False'
 ####
 
 # Packages management
@@ -56,7 +59,7 @@ ln -s /bin/true /sbin/initctl
 
 apt purge -y apparmor apparmor-utils gnome-todo hyphen-ru libjuh-java libjurt-java libreoffice-common libreoffice-style-breeze libreoffice-style-colibre libreoffice-style-elementary \
 libreoffice-style-tango librhythmbox-core10 libridl-java libuno-cppu3 libuno-cppuhelpergcc3-3 libuno-purpenvhelpergcc3-3 libuno-sal3 libuno-salhelpergcc3-3 \
-libunoloader-java mythes-de mythes-de-ch mythes-en-us mythes-es mythes-fr mythes-it mythes-pt-pt mythes-ru rhythmbox rhythmbox-data thunderbird
+libunoloader-java mythes-de mythes-de-ch mythes-en-us mythes-es mythes-fr mythes-it mythes-pt-pt mythes-ru rhythmbox rhythmbox-data thunderbird xscreensaver
 
 apt install -y alien bonnie++ conky curl exfat-fuse exfat-utils fio glances ipmitool libargtable2-0 libncurses5 lldpd mdadm net-tools nfs-common openssh-server screen smartmontools srvadmin-base srvadmin-idracadm7 srvadmin-idracadm8 traceroute vim
 
@@ -83,7 +86,7 @@ EOF
 
 # MegaCLI
 wget https://docs.broadcom.com/docs-and-downloads/raid-controllers/raid-controllers-common-files/8-07-14_MegaCLI.zip -P /tmp/
-unzipz /tmp/8-07-14_MegaCLI.zip -d /tmp
+unzip /tmp/8-07-14_MegaCLI.zip -d /tmp
 alien /tmp/Linux/MegaCli-8.07.14-1.noarch.rpm
 dpkg -i megacli_8.07.14-2_all.deb
 rm -f megacli_8.07.14-2_all.deb
@@ -93,19 +96,21 @@ ln -s /opt/MegaRAID/MegaCli/MegaCli64 /usr/bin/megacli
 ### Provide AutomatiK Conky from a repo  -- https://www.gnome-look.org/p/1170490/ ###
 ### Temporary code ###
 wget https://github.com/Devorkin/Ubuntu-PXE---Custom-LiveCD/raw/main/automatik.zip -P /tmp/
-unzip /tmp/automatik.zip -d /tmp
+mkdir /tmp/AutomatiK
+unzip /tmp/automatik.zip -d /tmp/AutomatiK
 mkdir /usr/local/lib/conky
 ###
 mv /tmp/AutomatiK /usr/local/lib/conky/
 chown -R 999:999 /usr/local/lib/conky/AutomatiK
-chmod -R rwx /usr/local/lib/conky/AutomatiK
+chmod -R ugo+rwx /usr/local/lib/conky/AutomatiK
 cat >> /etc/xdg/autostart/conky.desktop << EOF
 [Desktop Entry]
 Type=Application
 Name=ConkyLauncher
 Exec=/usr/local/lib/conky/AutomatiK/start.sh
-OnlyShowIn=GNOME;
+
 EOF
+# OnlyShowIn=GNOME;
 
 # Other OS changes
 ufw disable
@@ -154,15 +159,17 @@ rm -rf $working_dir
 
 mkdir $pxe_data_path/data/ubuntu-${livecd_dist_name}
 mount $images_path/ubuntu-${livecd_dist_name}.iso $pxe_data_path/tmp
-cp -r $pxe_data_path/tmp/* $pxe_data_path/data/ubuntu-${livecd_dist_name}/
-cp -r $pxe_data_path/tmp/.disk $pxe_data_path/data/ubuntu-${livecd_dist_name}/
+cp -rp $pxe_data_path/tmp/* $pxe_data_path/data/ubuntu-${livecd_dist_name}/
+cp -rp $pxe_data_path/tmp/.disk $pxe_data_path/data/ubuntu-${livecd_dist_name}/
 umount $pxe_data_path/tmp
+cp -rp $pxe_data_path/data/ubuntu-${livecd_dist_name}/casper/initrd ${tftp_path}/initrd-$boot_suffix
+cp -rp $pxe_data_path/data/ubuntu-${livecd_dist_name}/casper/vmlinuz ${tftp_path}/vmlinuz-$boot_suffix
 
-line_num=`expr $(grep ^LABEL /var/lib/tftpboot/pxelinux.cfg/default | awk '{print $2}' | tail -n 1) + 1`
+line_num=`expr $(grep ^LABEL ${tftp_path}/pxelinux.cfg/default | awk '{print $2}' | tail -n 1) + 1`
 cat >> $tftp_path/pxelinux.cfg/default << EOF
 LABEL $line_num
   MENU LABEL Ubuntu -- 20.04 - ${livecd_title_name}, from NFS
-  KERNEL vmlinuz-20.04-desktop
-  APPEND initrd=initrd-20.04-desktop nfsroot=10.10.20.2:/var/lib/PXE/data/ubuntu-${livecd_dist_name} ro netboot=nfs boot=casper ip=dhcp ---
+  KERNEL vmlinuz-$boot_suffix
+  APPEND initrd=initrd-$boot_suffix nfsroot=10.10.20.2:/var/lib/PXE/data/ubuntu-${livecd_dist_name} ro netboot=nfs boot=casper ip=dhcp ---
 
 EOF
