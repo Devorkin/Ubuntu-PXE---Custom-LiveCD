@@ -1,14 +1,14 @@
 #! /bin/bash
 
 # Script declarations
-boot_suffix='lubuntu'
+boot_suffix='gnome'
 pxe_data_path='/var/lib/PXE'
 images_path="$pxe_data_path/images"
 livecd_extract_path="$pxe_data_path/extract-livecd"
-livecd_image_name='lubuntu-20.04.4-desktop-amd64.iso'
-# livecd_image_name='ubuntu-20.04-desktop-amd64.iso'
-livecd_dist_name="LXDE_Devorkin_Modded"
-livecd_title_name="LXDE Devorkin Modded"
+# livecd_image_name='lubuntu-20.04.4-desktop-amd64.iso'
+livecd_image_name='ubuntu-20.04-desktop-amd64.iso'
+livecd_dist_name="GNOME_Devorkin_Modded"
+livecd_title_name="GNOME Devorkin Modded"
 tftp_path='/var/lib/tftpboot'
 working_dir="$pxe_data_path/working_dir"
 
@@ -93,13 +93,9 @@ rm -f megacli_8.07.14-2_all.deb
 ln -s /opt/MegaRAID/MegaCli/MegaCli64 /usr/bin/megacli
 
 # Conky configuration
-### Provide AutomatiK Conky from a repo  -- https://www.gnome-look.org/p/1170490/ ###
-### Temporary code ###
 wget https://github.com/Devorkin/Ubuntu-PXE---Custom-LiveCD/raw/main/automatik.zip -P /tmp/
-mkdir /tmp/AutomatiK
-unzip /tmp/automatik.zip -d /tmp/AutomatiK
+unzip /tmp/automatik.zip -d /tmp
 mkdir /usr/local/lib/conky
-###
 mv /tmp/AutomatiK /usr/local/lib/conky/
 chown -R 999:999 /usr/local/lib/conky/AutomatiK
 chmod -R ugo+rwx /usr/local/lib/conky/AutomatiK
@@ -108,9 +104,8 @@ cat >> /etc/xdg/autostart/conky.desktop << EOF
 Type=Application
 Name=ConkyLauncher
 Exec=/usr/local/lib/conky/AutomatiK/start.sh
-
 EOF
-# OnlyShowIn=GNOME;
+
 
 # Other OS changes
 ufw disable
@@ -119,7 +114,8 @@ ufw disable
 apt upgrade -y
 apt autoremove -y
 apt clean
-rm -rf /tmp/* ~/.bash_history /etc/resolv.conf
+rm -rf /tmp/* ~/.bash_history
+rm /var/lib/dbus/machine-id
 rm /sbin/initctl
 dpkg-divert --rename --remove /sbin/initctl
 umount /proc || umount -lf /proc
@@ -151,9 +147,9 @@ mkisofs -D -r -V "Ubuntu_custom" -cache-inodes -J -l -b isolinux/isolinux.bin -c
 # Clean up
 umount $working_dir/squashfs-root-edit/dev
 umount $working_dir/squashfs-root-edit/run
-rm -rf $livecd_extract_path/* rm -rf $livecd_extract_path/.*
+rm -rf $livecd_extract_path/* $livecd_extract_path/.* 2> /dev/null
 umount $pxe_data_path/tmp
-rm -rf $livecd_extract_path
+rm -rf $livecd_extract_path 
 rm -rf $working_dir
 
 
@@ -171,5 +167,4 @@ LABEL $line_num
   MENU LABEL Ubuntu -- 20.04 - ${livecd_title_name}, from NFS
   KERNEL vmlinuz-$boot_suffix
   APPEND initrd=initrd-$boot_suffix nfsroot=10.10.20.2:/var/lib/PXE/data/ubuntu-${livecd_dist_name} ro netboot=nfs boot=casper ip=dhcp ---
-
 EOF
