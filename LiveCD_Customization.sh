@@ -5,7 +5,6 @@ boot_suffix='gnome'
 pxe_data_path='/var/lib/PXE'
 images_path="$pxe_data_path/images"
 livecd_extract_path="$pxe_data_path/extract-livecd"
-# livecd_image_name='lubuntu-20.04.4-desktop-amd64.iso'
 livecd_image_name='ubuntu-20.04-desktop-amd64.iso'
 livecd_dist_name="GNOME_Devorkin_Modded"
 livecd_title_name="GNOME Devorkin Modded"
@@ -20,7 +19,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # Extract the LiveCD OS
-apt install -y genisoimage squashfs-tools xorriso
+apt install -y genisoimage rsync squashfs-tools xorriso
 
 mkdir {$livecd_extract_path,$working_dir}
 cd $working_dir
@@ -38,6 +37,7 @@ unsquashfs $pxe_data_path/tmp/casper/filesystem.squashfs
 mv squashfs-root squashfs-root-edit
 mount -o bind /run/ squashfs-root-edit/run
 mount --bind /dev/ squashfs-root-edit/dev
+
 chroot squashfs-root-edit
 mount -t proc none /proc
 mount -t sysfs none /sys
@@ -61,11 +61,12 @@ apt purge -y apparmor apparmor-utils gnome-todo hyphen-ru libjuh-java libjurt-ja
 libreoffice-style-tango librhythmbox-core10 libridl-java libuno-cppu3 libuno-cppuhelpergcc3-3 libuno-purpenvhelpergcc3-3 libuno-sal3 libuno-salhelpergcc3-3 \
 libunoloader-java mythes-de mythes-de-ch mythes-en-us mythes-es mythes-fr mythes-it mythes-pt-pt mythes-ru rhythmbox rhythmbox-data thunderbird xscreensaver
 
-apt install -y alien bonnie++ conky curl exfat-fuse exfat-utils fio glances ipmitool libargtable2-0 libncurses5 lldpd mdadm net-tools nfs-common openssh-server screen smartmontools srvadmin-base srvadmin-idracadm7 srvadmin-idracadm8 traceroute vim
+apt install -y alien bonnie++ conky curl exfat-fuse exfat-utils fio glances libargtable2-0 libncurses5 lldpd mdadm net-tools nfs-common openssh-server screen smartmontools traceroute vim
 
-
-if [[ $virtual_machine == 'True' ]]; then 
-    apt install -y open-vm-tools
+if [[ $virtual_machine == 'False' ]]; then 
+  apt install -y ipmitool srvadmin-base srvadmin-idracadm7 srvadmin-idracadm8
+elif [[ $virtual_machine == 'True' ]]; then 
+  apt install -y open-vm-tools
 fi
 
 # SSHD configuration
